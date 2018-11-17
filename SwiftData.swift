@@ -424,13 +424,13 @@ public struct SwiftData {
      - Index error (401)
      
      :param: name       The index name that is being created
-     :param: onColumns  An array of column names that the index will be applied to (must be one column or greater)
-     :param: inTable    The table name where the index is being created
+     :param: columns  An array of column names that the index will be applied to (must be one column or greater)
+     :param: onTable    The table name where the index is being created
      :param: isUnique   True if the index should be unique, false if it should not be unique (defaults to false)
      
      :returns:          An Int with the error code, or nil if there was no error
      */
-    public static func createIndex(name: String, onColumns: [String], inTable: String, isUnique: Bool = false) -> Int? {
+    public static func createIndex(name: String, columns: [String], onTable: String, isUnique: Bool = false) -> Int? {
         
         var error: Int? = nil
         let task: ()->Void = {
@@ -438,7 +438,7 @@ public struct SwiftData {
                 error = err
                 return
             }
-            error = SQLiteDB.shared.createIndex(name, columns: onColumns, table: inTable, unique: isUnique)
+            error = SQLiteDB.shared.createIndex(name, columns: columns, table: onTable, unique: isUnique)
             SQLiteDB.shared.close()
         }
         putOnThread(task)
@@ -802,7 +802,7 @@ public struct SwiftData {
         
         //create the database path
         class func createPath() -> String {
-            let fileUrl = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("db.sqlite")
+            let fileUrl = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("data.sqlite")
             return fileUrl.path
         }
         
@@ -1404,19 +1404,20 @@ extension SwiftData.SQLiteDB {
     //create a table
     func createSQLTable(_ table: String, withColumnsAndTypes values: [String: SwiftData.DataType]) -> Int? {
         
-        var sqlStr = "CREATE TABLE IF NOT EXISTS \(table) (ID INTEGER PRIMARY KEY AUTOINCREMENT, "
+        var sqlStr = "CREATE TABLE IF NOT EXISTS \(table) (uid INTEGER PRIMARY KEY AUTOINCREMENT, "
         var firstRun = true
         for value in values {
+            let name = escapeIdentifier(value.0)
+            let type = value.1.toSQL()
             if firstRun {
-                sqlStr += "\(escapeIdentifier(value.0)) \(value.1.toSQL())"
+                sqlStr += "\(name) \(type)"
                 firstRun = false
             } else {
-                sqlStr += ", \(escapeIdentifier(value.0)) \(value.1.toSQL())"
+                sqlStr += ", \(name) \(type)"
             }
         }
         sqlStr += ")"
         return executeChange(sqlStr)
-        
     }
     
     //delete a table
@@ -1455,9 +1456,9 @@ extension SwiftData.SQLiteDB {
         }
         var sqlStr = ""
         if unique {
-            sqlStr = "CREATE UNIQUE INDEX \(name) ON \(table) ("
+            sqlStr = "CREATE UNIQUE INDEX IF NOT EXISTS \(name) ON \(table) ("
         } else {
-            sqlStr = "CREATE INDEX \(name) ON \(table) ("
+            sqlStr = "CREATE INDEX IF NOT EXISTS \(name) ON \(table) ("
         }
         var firstRun = true
         for column in columns {
